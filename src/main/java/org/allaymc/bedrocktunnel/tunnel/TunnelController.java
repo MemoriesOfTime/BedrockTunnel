@@ -5,6 +5,7 @@ import io.netty.bootstrap.ServerBootstrap;
 import io.netty.buffer.ByteBufUtil;
 import io.netty.buffer.Unpooled;
 import io.netty.channel.Channel;
+import io.netty.channel.ChannelFuture;
 import io.netty.channel.socket.nio.NioDatagramChannel;
 import org.allaymc.bedrocktunnel.capture.CaptureBundleStore;
 import org.allaymc.bedrocktunnel.capture.CaptureEntry;
@@ -385,7 +386,7 @@ public final class TunnelController {
                     .ipv6Port(config.listenPort())
                     .serverId(System.nanoTime());
 
-            Channel serverChannel = new ServerBootstrap()
+            ChannelFuture bindFuture = new ServerBootstrap()
                     .group(runtime.eventLoopGroup())
                     .channelFactory(RakChannelFactory.server(NioDatagramChannel.class))
                     .option(RakChannelOption.RAK_ADVERTISEMENT, advertisement.toByteBuf())
@@ -431,9 +432,13 @@ public final class TunnelController {
                             }
                         }
                     })
-                    .bind(config.listenAddress())
-                    .awaitUninterruptibly()
-                    .channel();
+                    .bind(config.listenAddress());
+
+            bindFuture.awaitUninterruptibly();
+            if (!bindFuture.isSuccess()) {
+                throw new IllegalStateException("Unable to bind to " + config.listenLabel(), bindFuture.cause());
+            }
+            Channel serverChannel = bindFuture.channel();
 
             runtime.setServerChannel(serverChannel);
             onEdt(() -> {
