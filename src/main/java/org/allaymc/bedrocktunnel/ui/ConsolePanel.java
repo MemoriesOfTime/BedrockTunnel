@@ -54,6 +54,13 @@ final class ConsolePanel extends JTextPane {
         }
     }
 
+    public void clear() {
+        setText("");
+        currentColor = ANSIColor.RESET.color();
+        currentLength = 0;
+        remaining = "";
+    }
+
     public void appendANSI(String text) {
         int position = 0;
         String input = remaining + text;

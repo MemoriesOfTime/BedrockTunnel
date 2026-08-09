@@ -56,6 +56,7 @@ import javax.swing.table.TableRowSorter;
 import javax.swing.text.JTextComponent;
 import java.awt.BorderLayout;
 import java.awt.Dimension;
+import java.awt.FlowLayout;
 import java.awt.Font;
 import java.awt.GraphicsEnvironment;
 import java.awt.GridBagConstraints;
@@ -685,6 +686,18 @@ public final class MainFrame extends JFrame {
         frame.setDefaultCloseOperation(WindowConstants.DISPOSE_ON_CLOSE);
         frame.setIconImage(getIconImage());
         frame.setLayout(new BorderLayout());
+
+        JButton clearButton = new JButton("Clear");
+        clearButton.addActionListener(event -> {
+            ConsoleOutput.clear();
+            consolePanel.clear();
+            consolePanel.setCaretPosition(0);
+        });
+        JPanel consoleButtonBar = new JPanel();
+        consoleButtonBar.setLayout(new FlowLayout(FlowLayout.LEFT));
+        consoleButtonBar.add(clearButton);
+        frame.add(consoleButtonBar, BorderLayout.NORTH);
+
         frame.add(new JScrollPane(consolePanel), BorderLayout.CENTER);
         frame.setSize(1100, 480);
         frame.setLocationRelativeTo(this);

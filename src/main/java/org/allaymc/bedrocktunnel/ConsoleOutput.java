@@ -39,6 +39,12 @@ public final class ConsoleOutput {
         }
     }
 
+    public static void clear() {
+        synchronized (LOCK) {
+            BUFFER.setLength(0);
+        }
+    }
+
     public static Runnable addListener(Consumer<String> listener) {
         LISTENERS.add(listener);
         String snapshot = snapshot();
