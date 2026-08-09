@@ -826,15 +826,10 @@ public final class TunnelController {
             refreshHistoryList();
         }
 
-        clearEntries();
-        try {
-            runtime.rotateCapture();
-        } catch (IOException exception) {
-            showError("Unable to prepare the next capture session.", exception);
-            doStopCapture();
-            return;
-        }
-
+        // Keep the captured packets visible after a disconnect so they can be inspected.
+        // The proxy stays alive across disconnects, and each flushPersistNow above wrote the
+        // full current entry set to the session directory, so the data is safe on disk.
+        // The view is cleared only when the proxy is explicitly stopped or restarted.
         onEdt(() -> {
             if (frame != null) {
                 frame.setStatusText(statusText);
@@ -932,6 +927,14 @@ public final class TunnelController {
         }
 
         @Override
+        public BlockDefinition getDefinition(String identifier) {
+            // Match SimpleDefinitionRegistry's missing-entry contract (returns null) instead of the
+            // interface default which throws UnsupportedOperationException. Bedrock v2168 (vanilla
+            // 1.26.40) looks blocks up by identifier during decode and gracefully degrades on null.
+            return null;
+        }
+
+        @Override
         public boolean isRegistered(BlockDefinition definition) {
             return true;
         }
@@ -948,6 +951,16 @@ public final class TunnelController {
         @Override
         public ItemDefinition getDefinition(int runtimeId) {
             return new UnknownItemDefinition(runtimeId);
+        }
+
+        @Override
+        public ItemDefinition getDefinition(String identifier) {
+            // Match SimpleDefinitionRegistry's missing-entry contract (returns null) instead of the
+            // interface default which throws UnsupportedOperationException. Bedrock v2168 (vanilla
+            // 1.26.40) looks items up by identifier during readItem/readItemDescriptor and falls back
+            // to DefaultDescriptor on null; throwing here kills the whole RakNet channel via
+            // PacketSerializeException.
+            return null;
         }
 
         @Override
