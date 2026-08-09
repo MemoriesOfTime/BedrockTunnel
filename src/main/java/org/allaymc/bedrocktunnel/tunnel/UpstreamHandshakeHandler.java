@@ -5,16 +5,16 @@ import org.apache.logging.log4j.Logger;
 import org.cloudburstmc.protocol.bedrock.codec.compat.BedrockCompat;
 import org.cloudburstmc.protocol.bedrock.data.PacketCompressionAlgorithm;
 import org.cloudburstmc.protocol.bedrock.data.auth.CertificateChainPayload;
-import org.cloudburstmc.protocol.bedrock.netty.codec.compression.NetEaseCompression;
 import org.cloudburstmc.protocol.bedrock.netty.codec.compression.SimpleCompressionStrategy;
 import org.cloudburstmc.protocol.bedrock.packet.BedrockPacketHandler;
 import org.cloudburstmc.protocol.bedrock.packet.LoginPacket;
 import org.cloudburstmc.protocol.bedrock.packet.NetworkSettingsPacket;
-import org.cloudburstmc.protocol.bedrock.packet.PacketSignal;
 import org.cloudburstmc.protocol.bedrock.packet.RequestNetworkSettingsPacket;
 import org.cloudburstmc.protocol.bedrock.util.ChainValidationResult;
 import org.cloudburstmc.protocol.bedrock.util.EncryptionUtils;
-import org.cloudburstmc.protocol.bedrock.util.NetEaseEncryptionUtils;
+import org.cloudburstmc.protocol.common.PacketSignal;
+import dev.mot.protocol.extension.NetEaseCompression;
+import dev.mot.protocol.extension.NetEaseEncryptionUtils;
 import org.jose4j.jws.JsonWebSignature;
 
 public final class UpstreamHandshakeHandler implements BedrockPacketHandler {
@@ -102,7 +102,7 @@ public final class UpstreamHandshakeHandler implements BedrockPacketHandler {
     }
 
     @Override
-    public void onDisconnect(String reason) {
+    public void onDisconnect(CharSequence reason) {
         controller.handleUpstreamClosed(runtime, session, reason);
     }
 }

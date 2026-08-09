@@ -2,8 +2,8 @@ package org.allaymc.bedrocktunnel.tunnel;
 
 import org.cloudburstmc.protocol.bedrock.codec.compat.BedrockCompat;
 import org.cloudburstmc.protocol.bedrock.packet.BedrockPacketHandler;
-import org.cloudburstmc.protocol.bedrock.packet.PacketSignal;
 import org.cloudburstmc.protocol.bedrock.packet.RequestNetworkSettingsPacket;
+import org.cloudburstmc.protocol.common.PacketSignal;
 
 final class RejectingUpstreamHandler implements BedrockPacketHandler {
     private final TunnelServerSession session;

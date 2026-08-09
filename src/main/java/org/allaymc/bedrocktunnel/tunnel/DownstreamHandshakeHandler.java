@@ -6,12 +6,12 @@ import org.cloudburstmc.protocol.bedrock.packet.BedrockPacketHandler;
 import org.cloudburstmc.protocol.bedrock.packet.ClientToServerHandshakePacket;
 import org.cloudburstmc.protocol.bedrock.packet.LoginPacket;
 import org.cloudburstmc.protocol.bedrock.packet.NetworkSettingsPacket;
-import org.cloudburstmc.protocol.bedrock.packet.PacketSignal;
 import org.cloudburstmc.protocol.bedrock.packet.ServerToClientHandshakePacket;
-import org.cloudburstmc.protocol.bedrock.netty.codec.compression.NetEaseCompression;
 import org.cloudburstmc.protocol.bedrock.netty.codec.compression.SimpleCompressionStrategy;
+import dev.mot.protocol.extension.NetEaseCompression;
 import org.cloudburstmc.protocol.bedrock.util.EncryptionUtils;
 import org.cloudburstmc.protocol.bedrock.util.JsonUtils;
+import org.cloudburstmc.protocol.common.PacketSignal;
 import org.jose4j.json.JsonUtil;
 import org.jose4j.jws.JsonWebSignature;
 import org.jose4j.jwx.HeaderParameterNames;
@@ -83,7 +83,7 @@ public final class DownstreamHandshakeHandler implements BedrockPacketHandler {
     }
 
     @Override
-    public void onDisconnect(String reason) {
+    public void onDisconnect(CharSequence reason) {
         controller.handleDownstreamClosed(runtime, session, reason);
     }
 }

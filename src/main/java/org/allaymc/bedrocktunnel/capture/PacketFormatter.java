@@ -36,7 +36,7 @@ public final class PacketFormatter {
         }
 
         Map<String, Object> fallback = new LinkedHashMap<>();
-        fallback.put("packetType", packet.getPacketType().name());
+        fallback.put("packetType", packet.getPacketType().getName());
         fallback.put("packetClass", packet.getClass().getName());
         fallback.put("description", packet.toString());
         if (packet instanceof UnknownPacket unknownPacket) {

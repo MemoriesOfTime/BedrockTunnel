@@ -36,9 +36,9 @@ import org.cloudburstmc.protocol.bedrock.codec.v554.Bedrock_v554;
 import org.cloudburstmc.protocol.bedrock.data.EncodingSettings;
 import org.cloudburstmc.protocol.bedrock.data.definitions.BlockDefinition;
 import org.cloudburstmc.protocol.bedrock.data.definitions.ItemDefinition;
-import org.cloudburstmc.protocol.bedrock.definition.DefinitionRegistry;
-import org.cloudburstmc.protocol.bedrock.definition.SimpleDefinitionRegistry;
 import org.cloudburstmc.protocol.bedrock.netty.BedrockPacketWrapper;
+import org.cloudburstmc.protocol.common.DefinitionRegistry;
+import org.cloudburstmc.protocol.common.SimpleDefinitionRegistry;
 import org.cloudburstmc.protocol.bedrock.netty.codec.compression.CompressionCodec;
 import org.cloudburstmc.protocol.bedrock.netty.codec.compression.NoopCompression;
 import org.cloudburstmc.protocol.bedrock.netty.codec.compression.SimpleCompressionStrategy;
@@ -47,7 +47,6 @@ import org.cloudburstmc.protocol.bedrock.netty.initializer.BedrockServerInitiali
 import org.cloudburstmc.protocol.bedrock.netty.codec.packet.BedrockPacketCodec;
 import org.cloudburstmc.protocol.bedrock.netty.codec.packet.BedrockPacketCodec_v3;
 import org.cloudburstmc.protocol.bedrock.packet.BedrockPacket;
-import org.cloudburstmc.protocol.bedrock.packet.ItemRegistryPacket;
 import org.cloudburstmc.protocol.bedrock.packet.RequestNetworkSettingsPacket;
 import org.cloudburstmc.protocol.bedrock.packet.StartGamePacket;
 import org.cloudburstmc.protocol.bedrock.packet.UnknownPacket;
@@ -196,7 +195,7 @@ public final class TunnelController {
                 System.currentTimeMillis() - captureStartedAt.toEpochMilli(),
                 direction,
                 wrapper.getPacketId(),
-                packet.getPacketType().name(),
+                packet.getPacketType().getName(),
                 runtime.config().codec().protocolVersion(),
                 wrapper.getSenderSubClientId(),
                 wrapper.getTargetSubClientId(),
@@ -241,11 +240,11 @@ public final class TunnelController {
         }
     }
 
-    public void handleUpstreamClosed(TunnelRuntime runtime, TunnelServerSession session, String reason) {
+    public void handleUpstreamClosed(TunnelRuntime runtime, TunnelServerSession session, CharSequence reason) {
         backgroundExecutor.execute(() -> doHandleUpstreamClosed(runtime, session, reason));
     }
 
-    public void handleDownstreamClosed(TunnelRuntime runtime, TunnelClientSession session, String reason) {
+    public void handleDownstreamClosed(TunnelRuntime runtime, TunnelClientSession session, CharSequence reason) {
         backgroundExecutor.execute(() -> doHandleDownstreamClosed(runtime, session, reason));
     }
 
@@ -478,7 +477,7 @@ public final class TunnelController {
         refreshHistoryList();
     }
 
-    private void doHandleUpstreamClosed(TunnelRuntime runtime, TunnelServerSession session, String reason) {
+    private void doHandleUpstreamClosed(TunnelRuntime runtime, TunnelServerSession session, CharSequence reason) {
         if (runtime != this.runtime || runtime.isStopping() || runtime.upstreamSession() != session) {
             return;
         }
@@ -497,7 +496,7 @@ public final class TunnelController {
         onActiveTunnelClosed(runtime, disconnectMessage("Client", reason));
     }
 
-    private void doHandleDownstreamClosed(TunnelRuntime runtime, TunnelClientSession session, String reason) {
+    private void doHandleDownstreamClosed(TunnelRuntime runtime, TunnelClientSession session, CharSequence reason) {
         if (runtime != this.runtime || runtime.isStopping() || runtime.downstreamSession() != session) {
             return;
         }
@@ -667,12 +666,6 @@ public final class TunnelController {
             }
             return;
         }
-
-        if (packet instanceof ItemRegistryPacket itemRegistryPacket && !itemRegistryPacket.getItems().isEmpty()) {
-            DefinitionRegistry<ItemDefinition> itemDefinitions = createItemDefinitions(itemRegistryPacket.getItems());
-            downstreamHelper.setItemDefinitions(itemDefinitions);
-            upstreamHelper.setItemDefinitions(itemDefinitions);
-        }
     }
 
     private static DefinitionRegistry<ItemDefinition> createItemDefinitions(List<ItemDefinition> items) {
@@ -680,7 +673,7 @@ public final class TunnelController {
         boolean hasAir = false;
         for (ItemDefinition item : items) {
             builder.add(item);
-            hasAir |= item.runtimeId() == 0;
+            hasAir |= item.getRuntimeId() == 0;
         }
         if (!hasAir) {
             builder.add(ItemDefinition.AIR);
@@ -860,8 +853,8 @@ public final class TunnelController {
         });
     }
 
-    private String disconnectMessage(String side, String reason) {
-        if (reason == null || reason.isBlank()) {
+    private String disconnectMessage(String side, CharSequence reason) {
+        if (reason == null || reason.toString().isBlank()) {
             return side + " disconnected. Listening for the next client...";
         }
         return side + " disconnected: " + reason;
@@ -921,11 +914,15 @@ public final class TunnelController {
 
         @Override
         public boolean isRegistered(BlockDefinition definition) {
-            return definitions.get(definition.runtimeId()) == definition;
+            return definitions.get(definition.getRuntimeId()) == definition;
         }
     }
 
     private record PaletteBlockDefinition(int runtimeId, NbtMap tag) implements BlockDefinition {
+        @Override
+        public int getRuntimeId() {
+            return runtimeId;
+        }
     }
 
     private static final class UnknownBlockDefinitionRegistry implements DefinitionRegistry<BlockDefinition> {
@@ -941,6 +938,10 @@ public final class TunnelController {
     }
 
     private record UnknownBlockDefinition(int runtimeId) implements BlockDefinition {
+        @Override
+        public int getRuntimeId() {
+            return runtimeId;
+        }
     }
 
     private static final class UnknownItemDefinitionRegistry implements DefinitionRegistry<ItemDefinition> {
@@ -957,12 +958,17 @@ public final class TunnelController {
 
     private record UnknownItemDefinition(int runtimeId) implements ItemDefinition {
         @Override
-        public String identifier() {
+        public int getRuntimeId() {
+            return runtimeId;
+        }
+
+        @Override
+        public String getIdentifier() {
             return "bedrocktunnel:unknown_" + runtimeId;
         }
 
         @Override
-        public boolean componentBased() {
+        public boolean isComponentBased() {
             return false;
         }
     }

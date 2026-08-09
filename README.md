@@ -101,6 +101,8 @@ BedrockTunnel currently supports the following versions:
 - `1.21.130` / `v898`
 - `1.26.0` / `v924`
 - `1.26.10` / `v944`
+- `1.26.20` / `v975`
+- `1.26.30` / `v1001`
 
 </details>
 

@@ -4,7 +4,7 @@ import org.allaymc.bedrocktunnel.capture.FlowDirection;
 import org.cloudburstmc.protocol.bedrock.BedrockClientSession;
 import org.cloudburstmc.protocol.bedrock.BedrockPeer;
 import org.cloudburstmc.protocol.bedrock.netty.BedrockPacketWrapper;
-import org.cloudburstmc.protocol.bedrock.packet.PacketSignal;
+import org.cloudburstmc.protocol.common.PacketSignal;
 
 final class TunnelClientSession extends BedrockClientSession {
     private final TunnelController controller;

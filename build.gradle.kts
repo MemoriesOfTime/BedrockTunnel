@@ -31,6 +31,7 @@ repositories {
 
 dependencies {
     implementation(libs.protocol)
+    implementation(libs.netease.extension)
     implementation(libs.flatlaf)
     implementation(libs.jackson.databind)
     implementation(libs.jackson.jsr310)
