@@ -16,6 +16,7 @@ protocol = { group = "org.cloudburstmc.protocol", name = "bedrock-connection", v
 netease-extension = { group = "dev.mot.protocol", name = "netease-protocol-extension", version.ref = "netease-extension" }
 flatlaf = { group = "com.formdev", name = "flatlaf", version.ref = "flatlaf" }
 jackson-databind = { group = "com.fasterxml.jackson.core", name = "jackson-databind", version.ref = "jackson" }
+jackson-jdk8 = { group = "com.fasterxml.jackson.datatype", name = "jackson-datatype-jdk8", version.ref = "jackson" }
 jackson-jsr310 = { group = "com.fasterxml.jackson.datatype", name = "jackson-datatype-jsr310", version.ref = "jackson" }
 log4j-core = { group = "org.apache.logging.log4j", name = "log4j-core", version.ref = "log4j" }
 log4j-slf4j = { group = "org.apache.logging.log4j", name = "log4j-slf4j2-impl", version.ref = "log4j" }

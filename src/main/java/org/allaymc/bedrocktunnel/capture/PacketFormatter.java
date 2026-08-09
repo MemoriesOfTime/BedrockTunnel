@@ -3,6 +3,8 @@ package org.allaymc.bedrocktunnel.capture;
 import com.fasterxml.jackson.databind.JsonNode;
 import io.netty.buffer.ByteBufUtil;
 import org.allaymc.bedrocktunnel.BedrockTunnelJson;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.cloudburstmc.protocol.bedrock.packet.BedrockPacket;
 import org.cloudburstmc.protocol.bedrock.packet.UnknownPacket;
 
@@ -11,6 +13,7 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 
 public final class PacketFormatter {
+    private static final Logger LOGGER = LogManager.getLogger(PacketFormatter.class);
     private static final int MAX_DESCRIPTION_LENGTH = 4096;
 
     private PacketFormatter() {
@@ -32,7 +35,9 @@ public final class PacketFormatter {
             if (!node.isMissingNode() && !node.isNull()) {
                 return BedrockTunnelJson.MAPPER.writeValueAsString(node);
             }
-        } catch (IllegalArgumentException | IOException ignored) {
+        } catch (IllegalArgumentException | IOException exception) {
+            LOGGER.warn("Failed to serialize {} to JSON, falling back to packet summary",
+                    packet.getClass().getName(), exception);
         }
 
         Map<String, Object> fallback = new LinkedHashMap<>();

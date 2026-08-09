@@ -34,6 +34,7 @@ dependencies {
     implementation(libs.netease.extension)
     implementation(libs.flatlaf)
     implementation(libs.jackson.databind)
+    implementation(libs.jackson.jdk8)
     implementation(libs.jackson.jsr310)
     implementation(libs.log4j.core)
     implementation(libs.log4j.slf4j)
