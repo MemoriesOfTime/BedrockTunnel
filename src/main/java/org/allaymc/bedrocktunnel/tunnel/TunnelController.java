@@ -53,6 +53,7 @@ import org.cloudburstmc.protocol.bedrock.packet.StartGamePacket;
 import org.cloudburstmc.protocol.bedrock.packet.UnknownPacket;
 
 import javax.swing.SwingUtilities;
+import javax.swing.Timer;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.nio.file.Path;
@@ -84,6 +85,9 @@ public final class TunnelController {
     });
     private final AtomicLong sequenceCounter = new AtomicLong();
     private final List<CaptureEntry> entries = new ArrayList<>();
+    private final List<CaptureEntry> pendingUiEntries = new ArrayList<>();
+    private final Timer uiRefreshTimer;
+    private static final int UI_REFRESH_INTERVAL_MS = 150;
     private final BedrockPong advertisement = new BedrockPong()
             .edition("MCPE")
             .motd("BedrockTunnel")
@@ -99,6 +103,11 @@ public final class TunnelController {
     private volatile PacketStatistics statistics = new PacketStatistics();
     private volatile PausedContext pausedContext;
 
+    public TunnelController() {
+        uiRefreshTimer = new Timer(UI_REFRESH_INTERVAL_MS, event -> flushPendingUiUpdates());
+        uiRefreshTimer.setRepeats(false);
+    }
+
     public void attachFrame(MainFrame frame) {
         this.frame = frame;
         refreshHistoryList();
@@ -111,6 +120,7 @@ public final class TunnelController {
 
     public void shutdown() {
         stopCapture();
+        uiRefreshTimer.stop();
         backgroundExecutor.shutdown();
     }
 
@@ -233,6 +243,7 @@ public final class TunnelController {
 
         if (entry.state() == PacketState.PAUSED) {
             onEdt(() -> {
+                flushPendingUiUpdates();
                 if (frame != null) {
                     frame.setPausedEntry(entry, false);
                     frame.selectEntry(entry);
@@ -473,6 +484,8 @@ public final class TunnelController {
         this.runtime = null;
 
         onEdt(() -> {
+            flushPendingUiUpdates();
+            uiRefreshTimer.stop();
             if (frame != null) {
                 frame.setStatusText("Capture stopped");
                 frame.setLiveMode(false, false, false);
@@ -720,18 +733,40 @@ public final class TunnelController {
     private CaptureEntry addEntryLocked(CaptureEntry entry) {
         entries.add(entry);
         statistics.recordNewEntry(entry);
-        onEdt(() -> {
-            if (frame != null) {
-                frame.addEntry(entry);
-                frame.updateStatistics(statistics.snapshot());
-            }
-        });
+        pendingUiEntries.add(entry);
+        // start() (not restart()): start() is a no-op when already scheduled, so the
+        // initial 150ms deadline survives a burst of back-to-back packets. restart()
+        // cancels and reschedules on every packet, which under sustained load
+        // (<150ms gaps between packets) keeps pushing the fire time forward and the
+        // timer never fires until traffic pauses -- the list appears frozen and only
+        // flushes when the player disconnects. start() guarantees a flush within one
+        // interval of the first packet in each burst.
+        uiRefreshTimer.start();
         return entry;
     }
 
+    private void flushPendingUiUpdates() {
+        List<CaptureEntry> batch;
+        PacketStatistics.Snapshot snapshot;
+        synchronized (stateLock) {
+            if (pendingUiEntries.isEmpty()) {
+                return;
+            }
+            batch = new ArrayList<>(pendingUiEntries);
+            pendingUiEntries.clear();
+            snapshot = statistics.snapshot();
+        }
+        if (frame != null) {
+            frame.addEntries(batch);
+            frame.updateStatistics(snapshot);
+        }
+    }
+
     private void clearEntries() {
+        uiRefreshTimer.stop();
         synchronized (stateLock) {
             entries.clear();
+            pendingUiEntries.clear();
             statistics = new PacketStatistics();
             sequenceCounter.set(0);
         }

@@ -65,6 +65,15 @@ final class CaptureTableModel extends AbstractTableModel {
         fireTableRowsInserted(row, row);
     }
 
+    public void addEntries(List<CaptureEntry> newEntries) {
+        if (newEntries.isEmpty()) {
+            return;
+        }
+        int first = entries.size();
+        entries.addAll(newEntries);
+        fireTableRowsInserted(first, entries.size() - 1);
+    }
+
     public void updateEntry(CaptureEntry entry) {
         int row = indexOf(entry);
         if (row >= 0) {

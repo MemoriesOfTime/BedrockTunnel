@@ -1,6 +1,7 @@
 package org.allaymc.bedrocktunnel;
 
 import com.formdev.flatlaf.themes.FlatMacDarkLaf;
+import com.formdev.flatlaf.util.LoggingFacade;
 import org.allaymc.bedrocktunnel.codec.CodecRegistry;
 import org.allaymc.bedrocktunnel.tunnel.TunnelController;
 import org.allaymc.bedrocktunnel.ui.MainFrame;
@@ -14,6 +15,15 @@ public final class BedrockTunnelApp {
 
     public static void main(String[] args) {
         ConsoleOutput.install();
+        // Force FlatLaf's LoggingFacade to initialize early, before any table rendering
+        // or debugger/profiler instrumentation. Its <clinit> builds the singleton
+        // logger instance; if it first runs lazily inside a JTable repaint (e.g. the
+        // throttled batch flush) while IntelliJ's debugger/async-profiler is attached,
+        // class initialization can fail and leave the singleton unbound, so every
+        // later FlatLaf UIDefaults lookup throws NoClassDefFoundError: LoggingFacade.
+        // Touching INSTANCE here binds it up front and skips the lazy path entirely.
+        LoggingFacade.INSTANCE.getClass();
+
         FlatMacDarkLaf.setup();
 
         TunnelController controller = new TunnelController();

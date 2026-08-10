@@ -89,6 +89,7 @@ public final class MainFrame extends JFrame {
     private final DefaultListModel<HistoryCapture> historyListModel = new DefaultListModel<>();
     private final TableRowSorter<CaptureTableModel> captureSorter = new TableRowSorter<>(captureTableModel);
     private final Map<Long, String> keywordHexCache = new ConcurrentHashMap<>();
+    private final Map<Long, Boolean> keywordMatchCache = new ConcurrentHashMap<>();
     private final Timer keywordFilterTimer = new Timer(180, event -> startKeywordSearch());
 
     private final JTextField listenHostField = new JTextField("0.0.0.0", 10);
@@ -200,6 +201,14 @@ public final class MainFrame extends JFrame {
     public void addEntry(CaptureEntry entry) {
         updateKeywordMatch(entry);
         captureTableModel.addEntry(entry);
+        refreshActionButtons();
+    }
+
+    public void addEntries(List<CaptureEntry> entries) {
+        for (CaptureEntry entry : entries) {
+            updateKeywordMatch(entry);
+        }
+        captureTableModel.addEntries(entries);
         refreshActionButtons();
     }
 
@@ -494,6 +503,12 @@ public final class MainFrame extends JFrame {
             return;
         }
 
+        // Packet type identifiers are ASCII-only. Disable IME composition on the editor
+        // so a Chinese IME does not push preedit/commit text into the document (which
+        // would rebuild the dropdown with a Chinese query, yield no matches, and flicker
+        // the popup). Typing goes in as raw English regardless of the active IME.
+        textComponent.enableInputMethods(false);
+
         textComponent.getDocument().addDocumentListener(new DocumentListener() {
             @Override
             public void insertUpdate(DocumentEvent event) {
@@ -511,6 +526,15 @@ public final class MainFrame extends JFrame {
             public void changedUpdate(DocumentEvent event) {
                 scheduleFilterPacketTypeChoicesUpdate(textComponent);
                 applyFilters();
+            }
+        });
+
+        // Show the full packet type list when the editor gains focus, so the user can
+        // pick from it without typing first (e.g. when it still reads "Any").
+        textComponent.addFocusListener(new java.awt.event.FocusAdapter() {
+            @Override
+            public void focusGained(java.awt.event.FocusEvent event) {
+                scheduleFilterPacketTypeChoicesUpdate(textComponent);
             }
         });
     }
@@ -531,6 +555,10 @@ public final class MainFrame extends JFrame {
         if (!(editorComponent instanceof JTextComponent textComponent)) {
             return;
         }
+
+        // Same ASCII-only rationale as the filter box: keep typing raw-English even
+        // when a Chinese IME is active system-wide.
+        textComponent.enableInputMethods(false);
 
         textComponent.getDocument().addDocumentListener(new DocumentListener() {
             @Override
@@ -567,43 +595,49 @@ public final class MainFrame extends JFrame {
     }
 
     private void applyFilters() {
-        List<PacketRule> hideRules = ruleTableModel.rulesOfType(RuleTableModel.RuleType.HIDE);
-        String packetTypeQuery = selectedFilterPacketType();
-        String keyword = currentKeyword();
-        boolean keywordReady = !keyword.isBlank() && keyword.equals(activeKeyword);
+        final List<PacketRule> hideRules = ruleTableModel.rulesOfType(RuleTableModel.RuleType.HIDE);
+        final DirectionMatch directionFilter = filterDirectionValue();
+        final PacketState stateFilter = filterStateValue();
+        final String packetTypeQuery = selectedFilterPacketType();
+        final boolean packetTypeActive = !packetTypeQuery.isBlank()
+                && !ANY_PACKET.equalsIgnoreCase(packetTypeQuery);
+        final String keyword = currentKeyword();
+        final boolean keywordReady = !keyword.isBlank() && keyword.equals(activeKeyword);
+        final Set<Long> matches = keywordMatchSequences;
+
         captureSorter.setRowFilter(new RowFilter<>() {
             @Override
             public boolean include(Entry<? extends CaptureTableModel, ? extends Integer> row) {
                 CaptureEntry entry = captureTableModel.entryAt(row.getIdentifier());
-                if (hideRules.stream().anyMatch(rule -> rule.matches(entry.packet()))) {
+                var packet = entry.packet();
+                for (PacketRule rule : hideRules) {
+                    if (rule.matches(packet)) {
+                        return false;
+                    }
+                }
+                if (directionFilter != null && !directionFilter.matches(packet.direction())) {
                     return false;
                 }
-
-                Object direction = filterDirectionBox.getSelectedItem();
-                if (direction instanceof DirectionMatch match && !match.matches(entry.packet().direction())) {
+                if (stateFilter != null && entry.state() != stateFilter) {
                     return false;
                 }
-
-                Object state = filterStateBox.getSelectedItem();
-                if (state instanceof PacketState packetState && entry.state() != packetState) {
+                if (packetTypeActive && !containsIgnoreCase(packet.packetType(), packetTypeQuery)) {
                     return false;
                 }
-
-                if (!packetTypeQuery.isBlank()
-                        && !ANY_PACKET.equalsIgnoreCase(packetTypeQuery)
-                        && !containsIgnoreCase(entry.packet().packetType(), packetTypeQuery)) {
-                    return false;
-                }
-
-                if (keyword.isBlank()) {
+                if (keyword.isBlank() || !keywordReady) {
                     return true;
                 }
-                if (!keywordReady) {
-                    return true;
-                }
-                return keywordMatchSequences.contains(entry.packet().sequence());
+                return matches.contains(packet.sequence());
             }
         });
+    }
+
+    private DirectionMatch filterDirectionValue() {
+        return filterDirectionBox.getSelectedItem() instanceof DirectionMatch match ? match : null;
+    }
+
+    private PacketState filterStateValue() {
+        return filterStateBox.getSelectedItem() instanceof PacketState state ? state : null;
     }
 
     private void applyRules() {
@@ -930,6 +964,7 @@ public final class MainFrame extends JFrame {
             cancelKeywordSearch();
             activeKeyword = "";
             keywordMatchSequences = Set.of();
+            keywordMatchCache.clear();
             applyFilters();
             return;
         }
@@ -950,6 +985,7 @@ public final class MainFrame extends JFrame {
         cancelKeywordSearch();
         activeKeyword = "";
         keywordMatchSequences = Set.of();
+        keywordMatchCache.clear();
     }
 
     private void startKeywordSearch() {
@@ -962,6 +998,9 @@ public final class MainFrame extends JFrame {
         }
 
         cancelKeywordSearch();
+        if (!keyword.equals(activeKeyword)) {
+            keywordMatchCache.clear();
+        }
         List<CaptureEntry> entries = captureTableModel.entriesSnapshot();
         String normalizedHexKeyword = normalizeHexQuery(keyword);
 
@@ -973,7 +1012,7 @@ public final class MainFrame extends JFrame {
                     if (isCancelled()) {
                         return null;
                     }
-                    if (matchesKeyword(entry, keyword, normalizedHexKeyword)) {
+                    if (matchesKeywordCached(entry, keyword, normalizedHexKeyword)) {
                         matches.add(entry.packet().sequence());
                     }
                 }
@@ -1016,7 +1055,7 @@ public final class MainFrame extends JFrame {
         if (keyword.isBlank() || !keyword.equals(activeKeyword)) {
             return;
         }
-        if (matchesKeyword(entry, keyword, normalizeHexQuery(keyword))) {
+        if (matchesKeywordCached(entry, keyword, normalizeHexQuery(keyword))) {
             keywordMatchSequences.add(entry.packet().sequence());
         } else {
             keywordMatchSequences.remove(entry.packet().sequence());
@@ -1028,6 +1067,11 @@ public final class MainFrame extends JFrame {
                 || containsIgnoreCase(entry.packet().description(), keyword)
                 || containsIgnoreCase(entry.packet().jsonText(), keyword)
                 || matchesHexKeyword(entry, normalizedHexKeyword);
+    }
+
+    private boolean matchesKeywordCached(CaptureEntry entry, String keyword, String normalizedHexKeyword) {
+        return keywordMatchCache.computeIfAbsent(entry.packet().sequence(), ignored ->
+                matchesKeyword(entry, keyword, normalizedHexKeyword));
     }
 
     private boolean matchesHexKeyword(CaptureEntry entry, String normalizedHexKeyword) {
@@ -1076,7 +1120,12 @@ public final class MainFrame extends JFrame {
         }
 
         String text = textComponent.getText();
-        String query = text.trim().toLowerCase(Locale.ROOT);
+        String trimmed = text.trim();
+        // "Any" is the no-filter sentinel: treat it like an empty query so focusing
+        // the box lists every packet type instead of matching identifiers that
+        // merely contain the substring "any".
+        boolean anySentinel = trimmed.isEmpty() || ANY_PACKET.equalsIgnoreCase(trimmed);
+        String query = anySentinel ? "" : trimmed.toLowerCase(Locale.ROOT);
         var model = new DefaultComboBoxModel<String>();
         model.addElement(ANY_PACKET);
         for (String packetType : packetTypes) {
@@ -1093,7 +1142,10 @@ public final class MainFrame extends JFrame {
             if (filterPacketTypeBox.getEditor().getEditorComponent() instanceof JTextComponent editorTextComponent) {
                 editorTextComponent.setCaretPosition(text.length());
             }
-            if (filterPacketTypeBox.isShowing() && textComponent.isFocusOwner() && model.getSize() > 1 && !query.isEmpty()) {
+            // Show the popup whenever the editor has focus and there is more than one
+            // option -- including the "Any" (all packets) case, so the user sees the
+            // full list without having to type first.
+            if (filterPacketTypeBox.isShowing() && textComponent.isFocusOwner() && model.getSize() > 1) {
                 filterPacketTypeBox.showPopup();
             } else {
                 filterPacketTypeBox.hidePopup();
