@@ -1,5 +1,6 @@
 [versions]
-protocol = "3.0.0.Beta13-20260805.201455-7"
+protocol = "3.0.0.Beta13-20260820.124150-16"
+protocol-codec = "3.0.0.Beta13-20260820.124150-16"
 netease-extension = "1.21.124-R3"
 flatlaf = "3.7.1"
 jackson = "2.18.0"
@@ -13,6 +14,7 @@ junit-platform = "1.14.4"
 
 [libraries]
 protocol = { group = "org.cloudburstmc.protocol", name = "bedrock-connection", version.ref = "protocol" }
+protocol-codec = { group = "org.cloudburstmc.protocol", name = "bedrock-codec", version.ref = "protocol-codec" }
 netease-extension = { group = "dev.mot.protocol", name = "netease-protocol-extension", version.ref = "netease-extension" }
 flatlaf = { group = "com.formdev", name = "flatlaf", version.ref = "flatlaf" }
 jackson-databind = { group = "com.fasterxml.jackson.core", name = "jackson-databind", version.ref = "jackson" }

@@ -31,6 +31,7 @@ repositories {
 
 dependencies {
     implementation(libs.protocol)
+    implementation(libs.protocol.codec)
     implementation(libs.netease.extension)
     implementation(libs.flatlaf)
     implementation(libs.jackson.databind)

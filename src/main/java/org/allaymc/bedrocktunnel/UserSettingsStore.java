@@ -1,5 +1,6 @@
 package org.allaymc.bedrocktunnel;
 
+import org.allaymc.bedrocktunnel.codec.CodecRegistry;
 import org.allaymc.bedrocktunnel.codec.SupportedCodec;
 import org.allaymc.bedrocktunnel.rules.PacketControlMode;
 import org.allaymc.bedrocktunnel.rules.PacketRule;
@@ -33,7 +34,7 @@ public final class UserSettingsStore {
 
         try {
             Settings loaded = BedrockTunnelJson.MAPPER.readValue(path.toFile(), Settings.class);
-            return sanitize(loaded, defaults, codecs);
+            return sanitize(loaded, defaults);
         } catch (IOException exception) {
             return defaults;
         }
@@ -57,18 +58,13 @@ public final class UserSettingsStore {
         }
     }
 
-    private static Settings sanitize(Settings loaded, Settings defaults, List<SupportedCodec> codecs) {
+    private static Settings sanitize(Settings loaded, Settings defaults) {
         if (loaded == null) {
             return defaults;
         }
 
         CodecSelection selectedCodec = loaded.selectedCodec();
-        CodecSelection codec = selectedCodec == null ? defaults.selectedCodec() : codecs.stream()
-                .filter(candidate -> candidate.protocolVersion() == selectedCodec.protocolVersion()
-                        && candidate.netEase() == selectedCodec.netEase())
-                .findFirst()
-                .map(candidate -> new CodecSelection(candidate.protocolVersion(), candidate.netEase()))
-                .orElse(defaults.selectedCodec());
+        CodecSelection codec = selectedCodec == null ? defaults.selectedCodec() : resolveSelection(selectedCodec, defaults.selectedCodec());
 
         return new Settings(
                 blankToDefault(loaded.listenHost(), defaults.listenHost()),
@@ -81,6 +77,14 @@ public final class UserSettingsStore {
                 loaded.breakpointRules(),
                 loaded.hideRules()
         );
+    }
+
+    private static CodecSelection resolveSelection(CodecSelection selection, CodecSelection fallback) {
+        SupportedCodec resolved = CodecRegistry.resolve(selection.protocolVersion(), selection.minecraftVersion(), selection.netEase());
+        if (resolved == null) {
+            return fallback;
+        }
+        return new CodecSelection(resolved.protocolVersion(), resolved.minecraftVersion(), resolved.netEase());
     }
 
     private static String blankToDefault(String value, String defaultValue) {
@@ -120,7 +124,7 @@ public final class UserSettingsStore {
                     19134,
                     "127.0.0.1",
                     19132,
-                    new CodecSelection(codec.protocolVersion(), codec.netEase()),
+                    new CodecSelection(codec.protocolVersion(), codec.minecraftVersion(), codec.netEase()),
                     PacketControlMode.BLACKLIST,
                     List.of(),
                     List.of(),
@@ -129,6 +133,6 @@ public final class UserSettingsStore {
         }
     }
 
-    public record CodecSelection(int protocolVersion, boolean netEase) {
+    public record CodecSelection(int protocolVersion, String minecraftVersion, boolean netEase) {
     }
 }

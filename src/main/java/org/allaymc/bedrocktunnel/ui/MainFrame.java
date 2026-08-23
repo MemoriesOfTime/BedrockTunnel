@@ -9,6 +9,7 @@ import org.allaymc.bedrocktunnel.capture.HistoryCapture;
 import org.allaymc.bedrocktunnel.capture.PacketFormatter;
 import org.allaymc.bedrocktunnel.capture.PacketState;
 import org.allaymc.bedrocktunnel.capture.PacketStatistics;
+import org.allaymc.bedrocktunnel.codec.CodecRegistry;
 import org.allaymc.bedrocktunnel.codec.SupportedCodec;
 import org.allaymc.bedrocktunnel.rules.DirectionMatch;
 import org.allaymc.bedrocktunnel.rules.PacketControlMode;
@@ -672,10 +673,8 @@ public final class MainFrame extends JFrame {
     }
 
     private SupportedCodec findCodec(UserSettingsStore.CodecSelection selection) {
-        return codecs.stream()
-                .filter(codec -> codec.protocolVersion() == selection.protocolVersion() && codec.netEase() == selection.netEase())
-                .findFirst()
-                .orElse(codecs.getFirst());
+        SupportedCodec resolved = CodecRegistry.resolve(selection.protocolVersion(), selection.minecraftVersion(), selection.netEase());
+        return resolved == null ? codecs.getFirst() : resolved;
     }
 
     private void persistSettings() {
@@ -684,7 +683,7 @@ public final class MainFrame extends JFrame {
                 parsePortOrDefault(listenPortField.getText(), 19132),
                 targetHostField.getText().trim(),
                 parsePortOrDefault(targetPortField.getText(), 19132),
-                new UserSettingsStore.CodecSelection(selectedCodec().protocolVersion(), selectedCodec().netEase()),
+                new UserSettingsStore.CodecSelection(selectedCodec().protocolVersion(), selectedCodec().minecraftVersion(), selectedCodec().netEase()),
                 (PacketControlMode) ruleModeBox.getSelectedItem(),
                 ruleTableModel.rulesOfType(RuleTableModel.RuleType.BLOCK),
                 ruleTableModel.rulesOfType(RuleTableModel.RuleType.BREAKPOINT),

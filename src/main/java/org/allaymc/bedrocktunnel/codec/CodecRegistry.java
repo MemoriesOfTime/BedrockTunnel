@@ -63,6 +63,8 @@ import org.cloudburstmc.protocol.bedrock.codec.v944.Bedrock_v944;
 import org.cloudburstmc.protocol.bedrock.codec.v975.Bedrock_v975;
 import org.cloudburstmc.protocol.bedrock.codec.v1001.Bedrock_v1001;
 import org.cloudburstmc.protocol.bedrock.codec.v2168.Bedrock_v2168;
+import org.cloudburstmc.protocol.bedrock.codec.v2168.Bedrock_v2168_hotfix4;
+import org.cloudburstmc.protocol.bedrock.codec.v2169.Bedrock_v2169;
 import org.cloudburstmc.protocol.bedrock.packet.BedrockPacketType;
 import dev.mot.protocol.extension.codec.v630.Bedrock_v630_NetEase;
 import dev.mot.protocol.extension.codec.v686.Bedrock_v686_NetEase;
@@ -143,7 +145,9 @@ public final class CodecRegistry {
             supported(Bedrock_v944.CODEC),
             supported(Bedrock_v975.CODEC),
             supported(Bedrock_v1001.CODEC),
-            supported(Bedrock_v2168.CODEC)
+            supported(Bedrock_v2168.CODEC),
+            supported(Bedrock_v2168_hotfix4.CODEC),
+            supported(Bedrock_v2169.CODEC)
     );
 
     private static final List<String> PACKET_TYPES = List.of(BedrockPacketType.class.getFields()).stream()
@@ -164,10 +168,34 @@ public final class CodecRegistry {
     }
 
     public static SupportedCodec byProtocolVersion(int protocolVersion) {
+        SupportedCodec codec = resolve(protocolVersion, null, false);
+        if (codec == null) {
+            throw new IllegalArgumentException("Unsupported protocol version: " + protocolVersion);
+        }
+        return codec;
+    }
+
+    /**
+     * Resolves a codec from persisted selection data. The minecraftVersion is the
+     * precise identity (same protocol number can carry several hotfix codecs, e.g.
+     * v2168 for both 1.26.40 and 1.26.44); the protocol number is only a legacy
+     * fallback for settings saved before hotfix variants existed, resolving to the
+     * newest hotfix of that protocol.
+     */
+    public static SupportedCodec resolve(int protocolVersion, String minecraftVersion, boolean netEase) {
+        if (minecraftVersion != null) {
+            SupportedCodec exact = SUPPORTED.stream()
+                    .filter(codec -> codec.netEase() == netEase && minecraftVersion.equals(codec.minecraftVersion()))
+                    .findFirst()
+                    .orElse(null);
+            if (exact != null) {
+                return exact;
+            }
+        }
         return SUPPORTED.stream()
-                .filter(codec -> codec.protocolVersion() == protocolVersion)
-                .findFirst()
-                .orElseThrow(() -> new IllegalArgumentException("Unsupported protocol version: " + protocolVersion));
+                .filter(codec -> codec.netEase() == netEase && codec.protocolVersion() == protocolVersion)
+                .max(Comparator.comparing(SupportedCodec::minecraftVersion))
+                .orElse(null);
     }
 
     public static List<String> packetTypes() {
@@ -176,7 +204,9 @@ public final class CodecRegistry {
 
     public static List<SupportedCodec> sortedDescending() {
         return SUPPORTED.stream()
-                .sorted(Comparator.comparingInt(SupportedCodec::protocolVersion).reversed())
+                .sorted(Comparator.comparingInt(SupportedCodec::protocolVersion)
+                        .thenComparing(SupportedCodec::minecraftVersion)
+                        .reversed())
                 .toList();
     }
 
