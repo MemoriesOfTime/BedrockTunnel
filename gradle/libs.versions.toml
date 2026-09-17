@@ -1,6 +1,6 @@
 [versions]
-protocol = "3.0.0.Beta13-20260907.175719-23"
-protocol-codec = "3.0.0.Beta13-20260907.175719-23"
+protocol = "3.0.0.Beta13-20260917.001841-27"
+protocol-codec = "3.0.0.Beta13-20260917.001841-27"
 netease-extension = "1.21.124-R8"
 flatlaf = "3.7.1"
 jackson = "2.18.0"
@@ -11,6 +11,8 @@ bined = "0.2.2"
 exbin-auxiliary = "0.2.2"
 junit = "5.14.4"
 junit-platform = "1.14.4"
+nethernet = "2.0.0.CR3-20260916.210127-12"
+libdatachannel = "0.24.5.0-20260916.205653-5"
 
 [libraries]
 protocol = { group = "org.cloudburstmc.protocol", name = "bedrock-connection", version.ref = "protocol" }
@@ -29,6 +31,9 @@ binary-data = { group = "org.exbin.auxiliary", name = "binary_data", version.ref
 binary-data-array = { group = "org.exbin.auxiliary", name = "binary_data-array", version.ref = "exbin-auxiliary" }
 junit-jupiter = { group = "org.junit.jupiter", name = "junit-jupiter", version.ref = "junit" }
 junit-platform-launcher = { group = "org.junit.platform", name = "junit-platform-launcher", version.ref = "junit-platform" }
+netty-transport-nethernet = { group = "org.cloudburstmc.netty", name = "netty-transport-nethernet", version.ref = "nethernet" }
+libdatachannel-java = { group = "dev.opencollab", name = "libdatachannel-java", version.ref = "libdatachannel" }
+libdatachannel-arch-detect = { group = "dev.opencollab", name = "libdatachannel-java-arch-detect", version.ref = "libdatachannel" }
 
 [plugins]
 shadow = { id = "com.gradleup.shadow", version = "9.4.1" }

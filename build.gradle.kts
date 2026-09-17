@@ -44,6 +44,11 @@ dependencies {
     implementation(libs.bined.swing)
     implementation(libs.binary.data)
     implementation(libs.binary.data.array)
+    // NetherNet (WebRTC) transport. The arch-detect bundle carries the libdatachannel bindings
+    // plus a native library for every supported platform, so the fat jar runs anywhere.
+    implementation(libs.netty.transport.nethernet)
+    implementation(libs.libdatachannel.java)
+    implementation(libs.libdatachannel.arch.detect)
 }
 
 application {

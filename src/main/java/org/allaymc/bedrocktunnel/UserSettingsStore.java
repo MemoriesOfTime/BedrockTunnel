@@ -4,6 +4,7 @@ import org.allaymc.bedrocktunnel.codec.CodecRegistry;
 import org.allaymc.bedrocktunnel.codec.SupportedCodec;
 import org.allaymc.bedrocktunnel.rules.PacketControlMode;
 import org.allaymc.bedrocktunnel.rules.PacketRule;
+import org.allaymc.bedrocktunnel.tunnel.TunnelTransport;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -69,8 +70,10 @@ public final class UserSettingsStore {
         return new Settings(
                 blankToDefault(loaded.listenHost(), defaults.listenHost()),
                 validPortOrDefault(loaded.listenPort(), defaults.listenPort()),
+                loaded.listenTransport() == null ? defaults.listenTransport() : loaded.listenTransport(),
                 blankToDefault(loaded.targetHost(), defaults.targetHost()),
                 validPortOrDefault(loaded.targetPort(), defaults.targetPort()),
+                loaded.targetTransport() == null ? defaults.targetTransport() : loaded.targetTransport(),
                 codec,
                 loaded.controlMode() == null ? defaults.controlMode() : loaded.controlMode(),
                 loaded.blockRules(),
@@ -98,8 +101,10 @@ public final class UserSettingsStore {
     public record Settings(
             String listenHost,
             int listenPort,
+            TunnelTransport listenTransport,
             String targetHost,
             int targetPort,
+            TunnelTransport targetTransport,
             CodecSelection selectedCodec,
             PacketControlMode controlMode,
             List<PacketRule> blockRules,
@@ -109,8 +114,10 @@ public final class UserSettingsStore {
         public Settings {
             listenHost = listenHost == null || listenHost.isBlank() ? "0.0.0.0" : listenHost;
             listenPort = listenPort <= 0 ? 19134 : listenPort;
+            listenTransport = listenTransport == null ? TunnelTransport.RAKNET : listenTransport;
             targetHost = targetHost == null || targetHost.isBlank() ? "127.0.0.1" : targetHost;
             targetPort = targetPort <= 0 ? 19132 : targetPort;
+            targetTransport = targetTransport == null ? TunnelTransport.RAKNET : targetTransport;
             controlMode = controlMode == null ? PacketControlMode.BLACKLIST : controlMode;
             blockRules = blockRules == null ? List.of() : List.copyOf(blockRules);
             breakpointRules = breakpointRules == null ? List.of() : List.copyOf(breakpointRules);
@@ -122,8 +129,10 @@ public final class UserSettingsStore {
             return new Settings(
                     "0.0.0.0",
                     19134,
+                    TunnelTransport.RAKNET,
                     "127.0.0.1",
                     19132,
+                    TunnelTransport.RAKNET,
                     new CodecSelection(codec.protocolVersion(), codec.minecraftVersion(), codec.netEase()),
                     PacketControlMode.BLACKLIST,
                     List.of(),

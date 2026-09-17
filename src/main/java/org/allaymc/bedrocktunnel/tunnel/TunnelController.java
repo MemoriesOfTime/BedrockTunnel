@@ -19,6 +19,8 @@ import org.allaymc.bedrocktunnel.capture.PacketState;
 import org.allaymc.bedrocktunnel.capture.PacketStatistics;
 import org.allaymc.bedrocktunnel.capture.StoredPacketRecord;
 import org.allaymc.bedrocktunnel.rules.RuleSet;
+import org.allaymc.bedrocktunnel.tunnel.nethernet.NetherNetChannelInitializer;
+import org.allaymc.bedrocktunnel.tunnel.nethernet.NetherNetTransports;
 import org.allaymc.bedrocktunnel.ui.MainFrame;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -32,6 +34,7 @@ import org.cloudburstmc.protocol.bedrock.BedrockPeer;
 import org.cloudburstmc.protocol.bedrock.BedrockPong;
 import org.cloudburstmc.protocol.bedrock.BedrockClientSession;
 import org.cloudburstmc.protocol.bedrock.BedrockServerSession;
+import org.cloudburstmc.protocol.bedrock.PacketDirection;
 import org.cloudburstmc.protocol.bedrock.codec.BedrockCodecHelper;
 import org.cloudburstmc.protocol.bedrock.codec.v554.Bedrock_v554;
 import org.cloudburstmc.protocol.bedrock.data.EncodingSettings;
@@ -269,50 +272,80 @@ public final class TunnelController {
             return;
         }
 
-        Channel channel = new Bootstrap()
-                .group(runtime.eventLoopGroup())
-                .channelFactory(RakChannelFactory.client(NioDatagramChannel.class))
-                .option(RakChannelOption.RAK_PROTOCOL_VERSION, runtime.config().codec().codec().getRaknetProtocolVersion())
-                .handler(new BedrockClientInitializer() {
-                    @Override
-                    protected void preInitChannel(Channel channel) throws Exception {
-                        super.preInitChannel(channel);
-                        if (runtime.config().codec().netEase()) {
-                            channel.pipeline().replace(
-                                    CompressionCodec.NAME,
-                                    CompressionCodec.NAME,
-                                    new CompressionCodec(new SimpleCompressionStrategy(new NoopCompression()), false)
-                            );
+        Channel channel;
+        if (runtime.config().targetTransport() == TunnelTransport.NETHERNET) {
+            var identityData = runtime.identityData();
+            try {
+                channel = NetherNetTransports.clientBootstrap(runtime.eventLoopGroup(), runtime.config(),
+                                new NetherNetChannelInitializer<TunnelClientSession>(PacketDirection.SERVER_BOUND) {
+                                    @Override
+                                    public TunnelClientSession createSession0(BedrockPeer peer, int subClientId) {
+                                        return new TunnelClientSession(peer, subClientId, TunnelController.this, runtime);
+                                    }
+
+                                    @Override
+                                    protected void initSession(TunnelClientSession tunnelSession) {
+                                        runtime.setDownstreamSession(tunnelSession);
+                                        tunnelSession.setCodec(runtime.config().codec().codec());
+                                        tunnelSession.getPeer().getCodecHelper().setEncodingSettings(EncodingSettings.UNLIMITED);
+                                        applyFallbackCodecState(tunnelSession.getPeer().getCodecHelper());
+                                        tunnelSession.setPacketHandler(new DownstreamHandshakeHandler(tunnelSession, TunnelController.this, runtime));
+                                    }
+                                },
+                                identityData == null ? "" : identityData.xuid,
+                                identityData == null ? "" : identityData.displayName)
+                        .connect(runtime.config().targetAddress())
+                        .awaitUninterruptibly()
+                        .channel();
+            } catch (IOException exception) {
+                throw new IllegalStateException("Unable to prepare the NetherNet connection to " + runtime.config().targetLabel(), exception);
+            }
+        } else {
+            channel = new Bootstrap()
+                    .group(runtime.eventLoopGroup())
+                    .channelFactory(RakChannelFactory.client(NioDatagramChannel.class))
+                    .option(RakChannelOption.RAK_PROTOCOL_VERSION, runtime.config().codec().codec().getRaknetProtocolVersion())
+                    .handler(new BedrockClientInitializer() {
+                        @Override
+                        protected void preInitChannel(Channel channel) throws Exception {
+                            super.preInitChannel(channel);
+                            if (runtime.config().codec().netEase()) {
+                                channel.pipeline().replace(
+                                        CompressionCodec.NAME,
+                                        CompressionCodec.NAME,
+                                        new CompressionCodec(new SimpleCompressionStrategy(new NoopCompression()), false)
+                                );
+                            }
                         }
-                    }
 
-                    @Override
-                    protected void initPacketCodec(Channel channel) throws Exception {
-                        if (runtime.config().codec().netEase()) {
-                            channel.pipeline().addLast(BedrockPacketCodec.NAME, new BedrockPacketCodec_v3());
-                            return;
+                        @Override
+                        protected void initPacketCodec(Channel channel) throws Exception {
+                            if (runtime.config().codec().netEase()) {
+                                channel.pipeline().addLast(BedrockPacketCodec.NAME, new BedrockPacketCodec_v3());
+                                return;
+                            }
+                            super.initPacketCodec(channel);
                         }
-                        super.initPacketCodec(channel);
-                    }
 
-                    @Override
-                    public TunnelClientSession createSession0(BedrockPeer peer, int subClientId) {
-                        return new TunnelClientSession(peer, subClientId, TunnelController.this, runtime);
-                    }
+                        @Override
+                        public TunnelClientSession createSession0(BedrockPeer peer, int subClientId) {
+                            return new TunnelClientSession(peer, subClientId, TunnelController.this, runtime);
+                        }
 
-                    @Override
-                    protected void initSession(BedrockClientSession session) {
-                        TunnelClientSession tunnelSession = (TunnelClientSession) session;
-                        runtime.setDownstreamSession(tunnelSession);
-                        tunnelSession.setCodec(runtime.config().codec().codec());
-                        tunnelSession.getPeer().getCodecHelper().setEncodingSettings(EncodingSettings.UNLIMITED);
-                        applyFallbackCodecState(tunnelSession.getPeer().getCodecHelper());
-                        tunnelSession.setPacketHandler(new DownstreamHandshakeHandler(tunnelSession, TunnelController.this, runtime));
-                    }
-                })
-                .connect(runtime.config().targetAddress())
-                .awaitUninterruptibly()
-                .channel();
+                        @Override
+                        protected void initSession(BedrockClientSession session) {
+                            TunnelClientSession tunnelSession = (TunnelClientSession) session;
+                            runtime.setDownstreamSession(tunnelSession);
+                            tunnelSession.setCodec(runtime.config().codec().codec());
+                            tunnelSession.getPeer().getCodecHelper().setEncodingSettings(EncodingSettings.UNLIMITED);
+                            applyFallbackCodecState(tunnelSession.getPeer().getCodecHelper());
+                            tunnelSession.setPacketHandler(new DownstreamHandshakeHandler(tunnelSession, TunnelController.this, runtime));
+                        }
+                    })
+                    .connect(runtime.config().targetAddress())
+                    .awaitUninterruptibly()
+                    .channel();
+        }
 
         if (!channel.isActive()) {
             throw new IllegalStateException("Unable to connect to " + runtime.config().targetLabel());
@@ -383,6 +416,11 @@ public final class TunnelController {
                     : "A live tunnel is already running.", null);
             return;
         }
+        if ((config.listenTransport() == TunnelTransport.NETHERNET || config.targetTransport() == TunnelTransport.NETHERNET)
+                && config.codec().netEase()) {
+            showError("NetherNet transport is not available for NetEase codecs. Pick a standard Bedrock codec or RakNet.", null);
+            return;
+        }
 
         clearEntries();
         pausedContext = null;
@@ -397,53 +435,77 @@ public final class TunnelController {
                     .ipv6Port(config.listenPort())
                     .serverId(System.nanoTime());
 
-            ChannelFuture bindFuture = new ServerBootstrap()
-                    .group(runtime.eventLoopGroup())
-                    .channelFactory(RakChannelFactory.server(NioDatagramChannel.class))
-                    .option(RakChannelOption.RAK_ADVERTISEMENT, advertisement.toByteBuf())
-                    .childHandler(new BedrockServerInitializer() {
-                        @Override
-                        protected void preInitChannel(Channel channel) throws Exception {
-                            super.preInitChannel(channel);
-                            Integer rakVersion = channel.config().getOption(RakChannelOption.RAK_PROTOCOL_VERSION);
-                            if (runtime.config().codec().netEase() && rakVersion != null && rakVersion == 8) {
-                                channel.pipeline().replace(
-                                        CompressionCodec.NAME,
-                                        CompressionCodec.NAME,
-                                        new CompressionCodec(new SimpleCompressionStrategy(new NoopCompression()), false)
-                                );
-                            }
-                        }
+            ChannelFuture bindFuture;
+            if (config.listenTransport() == TunnelTransport.NETHERNET) {
+                bindFuture = NetherNetTransports.serverBootstrap(runtime.eventLoopGroup(), config,
+                                new NetherNetChannelInitializer<TunnelServerSession>(PacketDirection.CLIENT_BOUND) {
+                                    @Override
+                                    public TunnelServerSession createSession0(BedrockPeer peer, int subClientId) {
+                                        return new TunnelServerSession(peer, subClientId, TunnelController.this, runtime);
+                                    }
 
-                        @Override
-                        protected void initPacketCodec(Channel channel) throws Exception {
-                            Integer rakVersion = channel.config().getOption(RakChannelOption.RAK_PROTOCOL_VERSION);
-                            if (runtime.config().codec().netEase() && rakVersion != null && rakVersion == 8) {
-                                channel.pipeline().addLast(BedrockPacketCodec.NAME, new BedrockPacketCodec_v3());
-                                return;
+                                    @Override
+                                    protected void initSession(TunnelServerSession tunnelSession) {
+                                        TunnelServerSession current = runtime.upstreamSession();
+                                        if (current == null || !current.isConnected()) {
+                                            runtime.setUpstreamSession(tunnelSession);
+                                            applyFallbackCodecState(tunnelSession.getPeer().getCodecHelper());
+                                            tunnelSession.setPacketHandler(new UpstreamHandshakeHandler(tunnelSession, TunnelController.this, runtime));
+                                        } else {
+                                            tunnelSession.setPacketHandler(new RejectingUpstreamHandler(tunnelSession));
+                                        }
+                                    }
+                                })
+                        .bind(config.listenAddress());
+            } else {
+                bindFuture = new ServerBootstrap()
+                        .group(runtime.eventLoopGroup())
+                        .channelFactory(RakChannelFactory.server(NioDatagramChannel.class))
+                        .option(RakChannelOption.RAK_ADVERTISEMENT, advertisement.toByteBuf())
+                        .childHandler(new BedrockServerInitializer() {
+                            @Override
+                            protected void preInitChannel(Channel channel) throws Exception {
+                                super.preInitChannel(channel);
+                                Integer rakVersion = channel.config().getOption(RakChannelOption.RAK_PROTOCOL_VERSION);
+                                if (runtime.config().codec().netEase() && rakVersion != null && rakVersion == 8) {
+                                    channel.pipeline().replace(
+                                            CompressionCodec.NAME,
+                                            CompressionCodec.NAME,
+                                            new CompressionCodec(new SimpleCompressionStrategy(new NoopCompression()), false)
+                                    );
+                                }
                             }
-                            super.initPacketCodec(channel);
-                        }
 
-                        @Override
-                        public TunnelServerSession createSession0(BedrockPeer peer, int subClientId) {
-                            return new TunnelServerSession(peer, subClientId, TunnelController.this, runtime);
-                        }
-
-                        @Override
-                        protected void initSession(BedrockServerSession session) {
-                            TunnelServerSession tunnelSession = (TunnelServerSession) session;
-                            TunnelServerSession current = runtime.upstreamSession();
-                            if (current == null || !current.isConnected()) {
-                                runtime.setUpstreamSession(tunnelSession);
-                                applyFallbackCodecState(tunnelSession.getPeer().getCodecHelper());
-                                tunnelSession.setPacketHandler(new UpstreamHandshakeHandler(tunnelSession, TunnelController.this, runtime));
-                            } else {
-                                tunnelSession.setPacketHandler(new RejectingUpstreamHandler(tunnelSession));
+                            @Override
+                            protected void initPacketCodec(Channel channel) throws Exception {
+                                Integer rakVersion = channel.config().getOption(RakChannelOption.RAK_PROTOCOL_VERSION);
+                                if (runtime.config().codec().netEase() && rakVersion != null && rakVersion == 8) {
+                                    channel.pipeline().addLast(BedrockPacketCodec.NAME, new BedrockPacketCodec_v3());
+                                    return;
+                                }
+                                super.initPacketCodec(channel);
                             }
-                        }
-                    })
-                    .bind(config.listenAddress());
+
+                            @Override
+                            public TunnelServerSession createSession0(BedrockPeer peer, int subClientId) {
+                                return new TunnelServerSession(peer, subClientId, TunnelController.this, runtime);
+                            }
+
+                            @Override
+                            protected void initSession(BedrockServerSession session) {
+                                TunnelServerSession tunnelSession = (TunnelServerSession) session;
+                                TunnelServerSession current = runtime.upstreamSession();
+                                if (current == null || !current.isConnected()) {
+                                    runtime.setUpstreamSession(tunnelSession);
+                                    applyFallbackCodecState(tunnelSession.getPeer().getCodecHelper());
+                                    tunnelSession.setPacketHandler(new UpstreamHandshakeHandler(tunnelSession, TunnelController.this, runtime));
+                                } else {
+                                    tunnelSession.setPacketHandler(new RejectingUpstreamHandler(tunnelSession));
+                                }
+                            }
+                        })
+                        .bind(config.listenAddress());
+            }
 
             bindFuture.awaitUninterruptibly();
             if (!bindFuture.isSuccess()) {
@@ -455,7 +517,7 @@ public final class TunnelController {
             onEdt(() -> {
                 if (frame != null) {
                     frame.clearEntries();
-                    frame.setStatusText("Listening on " + config.listenLabel());
+                    frame.setStatusText("Listening on " + config.listenLabel() + " via " + config.listenTransport().displayName());
                     frame.setLiveMode(true, false, false);
                 }
             });

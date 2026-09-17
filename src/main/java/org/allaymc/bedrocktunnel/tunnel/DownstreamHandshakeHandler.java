@@ -7,6 +7,7 @@ import org.cloudburstmc.protocol.bedrock.packet.ClientToServerHandshakePacket;
 import org.cloudburstmc.protocol.bedrock.packet.LoginPacket;
 import org.cloudburstmc.protocol.bedrock.packet.NetworkSettingsPacket;
 import org.cloudburstmc.protocol.bedrock.packet.ServerToClientHandshakePacket;
+import org.cloudburstmc.netty.channel.nethernet.NetherNetChannel;
 import org.cloudburstmc.protocol.bedrock.netty.codec.compression.SimpleCompressionStrategy;
 import dev.mot.protocol.extension.NetEaseCompression;
 import org.cloudburstmc.protocol.bedrock.util.EncryptionUtils;
@@ -59,6 +60,16 @@ public final class DownstreamHandshakeHandler implements BedrockPacketHandler {
 
     @Override
     public PacketSignal handle(ServerToClientHandshakePacket packet) {
+        if (session.getPeer().getChannel() instanceof NetherNetChannel) {
+            // NetherNet dropped the Bedrock-layer encryption the handshake used to switch on (the
+            // data channel already runs inside DTLS), but servers still send the packet and the
+            // login flow only moves on once it is acknowledged.
+            session.sendPacketImmediately(new ClientToServerHandshakePacket());
+            LOGGER.info("Downstream NetherNet handshake acknowledged for {}", runtime.config().targetLabel());
+            controller.onTunnelEstablished(runtime);
+            return PacketSignal.HANDLED;
+        }
+
         try {
             JsonWebSignature jws = new JsonWebSignature();
             jws.setCompactSerialization(packet.getJwt());

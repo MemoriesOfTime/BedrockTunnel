@@ -7,8 +7,10 @@ import java.net.InetSocketAddress;
 public record TunnelStartConfig(
         String listenHost,
         int listenPort,
+        TunnelTransport listenTransport,
         String targetHost,
         int targetPort,
+        TunnelTransport targetTransport,
         SupportedCodec codec
 ) {
     public InetSocketAddress listenAddress() {

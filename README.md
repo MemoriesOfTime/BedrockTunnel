@@ -8,6 +8,7 @@ BedrockTunnel is a desktop MITM packet capture tool for Minecraft: Bedrock Editi
 
 - 🖥️ A desktop GUI built for live packet inspection
 - 🌐 Live traffic capture between a Bedrock client and a target server
+- 🕸️ NetherNet (WebRTC) transport on either side of the tunnel
 - 📦 Packet details in `Summary`, `JSON`, and `Hex` views
 - 🔎 Packet filtering by direction, state, type, and keyword
 - 🚫 Packet blocking with blacklist and whitelist modes
@@ -106,7 +107,7 @@ BedrockTunnel currently supports the following versions:
 - `1.26.40` / `v2168`
 - `1.26.44` / `v2168`
 - `1.26.45` / `v2169`
-- `1.26.50` / `v2192`
+- `1.26.50` / `v2193`
 
 </details>
 
@@ -158,9 +159,25 @@ java -jar build/libs/BedrockTunnel.jar
 1. Start BedrockTunnel.
 2. Enter the local listen host and port.
 3. Enter the target Bedrock server host and port.
-4. Select the Bedrock protocol version.
-5. Click `Start`.
-6. Point the Bedrock client to the local listen address instead of the real server.
+4. Pick the transport for each leg: `RakNet` or `NetherNet`.
+5. Select the Bedrock protocol version.
+6. Click `Start`.
+7. Point the Bedrock client to the local listen address instead of the real server.
+
+## 🕸️ NetherNet
+
+Each side of the tunnel can independently use NetherNet, the WebRTC-based transport behind Bedrock's `Signaling` connections, instead of RakNet:
+
+- **Listen via NetherNet** serves the NetherNet HTTP signaling endpoint on the TCP listen port, the way dedicated servers do. A client that speaks NetherNet joins by pointing at the same `host:port` it would use over RakNet.
+- **Target via NetherNet** joins the target by posting a signaling request to the HTTP endpoint the target serves, so the target can be a dedicated server with NetherNet enabled or even another BedrockTunnel instance.
+
+A few details worth knowing:
+
+- Bedrock-layer encryption does not exist on NetherNet (the data channel already runs inside DTLS), so the tunnel reads the stream without the AES handshake step. A target that still sends `ServerToClientHandshake` gets it acknowledged without enabling encryption.
+- The tunnel signs its own NetherNet identity. The key is stored as `nethernet-identity.pem` in the data directory and is reused across runs, because clients pin it and a fresh key would prompt every returning player again.
+- Targets that require a Minecraft-auth-issued identity assertion (for example an online-mode dedicated server that validates tokens) reject the tunnel's self-signed assertion.
+- NetherNet is not available for NetEase codecs; those keep using the RakNet path.
+- Native WebRTC libraries for Windows, Linux, and macOS are bundled in the jar, so no extra installation is needed.
 
 ## 🖥️ Interface Overview
 

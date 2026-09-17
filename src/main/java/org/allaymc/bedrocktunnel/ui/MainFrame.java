@@ -17,6 +17,7 @@ import org.allaymc.bedrocktunnel.rules.PacketRule;
 import org.allaymc.bedrocktunnel.rules.RuleSet;
 import org.allaymc.bedrocktunnel.tunnel.TunnelController;
 import org.allaymc.bedrocktunnel.tunnel.TunnelStartConfig;
+import org.allaymc.bedrocktunnel.tunnel.TunnelTransport;
 import org.exbin.auxiliary.binary_data.array.ByteArrayEditableData;
 import org.exbin.bined.CodeType;
 import org.exbin.bined.EditMode;
@@ -31,6 +32,7 @@ import javax.swing.BorderFactory;
 import javax.swing.Box;
 import javax.swing.BoxLayout;
 import javax.swing.DefaultComboBoxModel;
+import javax.swing.DefaultListCellRenderer;
 import javax.swing.DefaultListModel;
 import javax.swing.JButton;
 import javax.swing.JComboBox;
@@ -95,8 +97,10 @@ public final class MainFrame extends JFrame {
 
     private final JTextField listenHostField = new JTextField("0.0.0.0", 10);
     private final JTextField listenPortField = new JTextField("19134", 6);
+    private final JComboBox<TunnelTransport> listenTransportBox = new JComboBox<>(TunnelTransport.values());
     private final JTextField targetHostField = new JTextField("127.0.0.1", 14);
     private final JTextField targetPortField = new JTextField("19132", 6);
+    private final JComboBox<TunnelTransport> targetTransportBox = new JComboBox<>(TunnelTransport.values());
     private final JComboBox<SupportedCodec> codecBox;
     private final JButton startButton = new JButton("Start");
     private final JButton stopButton = new JButton("Stop");
@@ -152,6 +156,8 @@ public final class MainFrame extends JFrame {
         this.codecBox = new JComboBox<>(codecs.toArray(SupportedCodec[]::new));
         this.filterPacketTypeBox = new JComboBox<>(buildPacketChoices(this.packetTypes));
         this.rulePacketTypeBox = new JComboBox<>(this.packetTypes.toArray(String[]::new));
+        configureTransportBox(listenTransportBox);
+        configureTransportBox(targetTransportBox);
         this.keywordFilterTimer.setRepeats(false);
         stabilizePacketTypeBoxWidth(filterPacketTypeBox);
         stabilizePacketTypeBoxWidth(rulePacketTypeBox);
@@ -310,9 +316,11 @@ public final class MainFrame extends JFrame {
 
         addField(panel, constraints, 0, "Listen Host", listenHostField, 0.22);
         addField(panel, constraints, 2, "Listen Port", listenPortField, 0.0);
-        addField(panel, constraints, 4, "Target Host", targetHostField, 0.30);
-        addField(panel, constraints, 6, "Target Port", targetPortField, 0.0);
-        addField(panel, constraints, 8, "Version", codecBox, 0.12);
+        addField(panel, constraints, 4, "Listen Via", listenTransportBox, 0.0);
+        addField(panel, constraints, 6, "Target Host", targetHostField, 0.30);
+        addField(panel, constraints, 8, "Target Port", targetPortField, 0.0);
+        addField(panel, constraints, 10, "Target Via", targetTransportBox, 0.0);
+        addField(panel, constraints, 12, "Version", codecBox, 0.12);
         return panel;
     }
 
@@ -662,8 +670,10 @@ public final class MainFrame extends JFrame {
         try {
             listenHostField.setText(settings.listenHost());
             listenPortField.setText(Integer.toString(settings.listenPort()));
+            listenTransportBox.setSelectedItem(settings.listenTransport());
             targetHostField.setText(settings.targetHost());
             targetPortField.setText(Integer.toString(settings.targetPort()));
+            targetTransportBox.setSelectedItem(settings.targetTransport());
             ruleModeBox.setSelectedItem(settings.controlMode());
             ruleTableModel.setRules(combineRuleRows(settings));
             codecBox.setSelectedItem(findCodec(settings.selectedCodec()));
@@ -681,8 +691,10 @@ public final class MainFrame extends JFrame {
         settingsStore.save(new UserSettingsStore.Settings(
                 listenHostField.getText().trim(),
                 parsePortOrDefault(listenPortField.getText(), 19132),
+                (TunnelTransport) listenTransportBox.getSelectedItem(),
                 targetHostField.getText().trim(),
                 parsePortOrDefault(targetPortField.getText(), 19132),
+                (TunnelTransport) targetTransportBox.getSelectedItem(),
                 new UserSettingsStore.CodecSelection(selectedCodec().protocolVersion(), selectedCodec().minecraftVersion(), selectedCodec().netEase()),
                 (PacketControlMode) ruleModeBox.getSelectedItem(),
                 ruleTableModel.rulesOfType(RuleTableModel.RuleType.BLOCK),
@@ -773,8 +785,10 @@ public final class MainFrame extends JFrame {
         return new TunnelStartConfig(
                 listenHostField.getText().trim(),
                 Integer.parseInt(listenPortField.getText().trim()),
+                (TunnelTransport) listenTransportBox.getSelectedItem(),
                 targetHost,
                 Integer.parseInt(targetPortField.getText().trim()),
+                (TunnelTransport) targetTransportBox.getSelectedItem(),
                 (SupportedCodec) codecBox.getSelectedItem()
         );
     }
@@ -898,6 +912,19 @@ public final class MainFrame extends JFrame {
         constraints.weightx = weightx;
         constraints.fill = weightx > 0 ? GridBagConstraints.HORIZONTAL : GridBagConstraints.NONE;
         panel.add(component, constraints);
+    }
+
+    private static void configureTransportBox(JComboBox<TunnelTransport> box) {
+        box.setRenderer(new DefaultListCellRenderer() {
+            @Override
+            public java.awt.Component getListCellRendererComponent(JList<?> list, Object value, int index, boolean isSelected, boolean cellHasFocus) {
+                java.awt.Component component = super.getListCellRendererComponent(list, value, index, isSelected, cellHasFocus);
+                if (value instanceof TunnelTransport transport) {
+                    setText(transport.displayName());
+                }
+                return component;
+            }
+        });
     }
 
     private void stabilizePacketTypeBoxWidth(JComboBox<String> comboBox) {
